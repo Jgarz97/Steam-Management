@@ -1,7 +1,6 @@
-import numpy as np
 from CoolProp.CoolProp import PropsSI
 
-class VaporProperties:
+class Vapor_Properties:
     def __init__(self, temperature_F, pressure_PSIA, superheated=False):
         self.temperature_F = temperature_F
         self.temperature_K = None
@@ -30,7 +29,6 @@ class VaporProperties:
             self.convert_pressure_Pa()
         
         saturation_temperature_K = PropsSI('T', 'P', self.pressure_Pa, 'Q', 1, 'IF97::Water')
-        
         self.saturation_temperature_F = saturation_temperature_K * 9/5 - 459.67
         return self.saturation_temperature_F
     
@@ -104,30 +102,22 @@ class VaporProperties:
         self.cv_BTUlbsF = cv_JkgK * 0.000238845896627
         return self.cv_BTUlbsF
     
-    def print_properties(self):
-        if self.superheated:
-            print(f"Superheated steam properties at {self.temperature_F} °F and {self.pressure_PSIA} psia:")
-        else:
-            self.calculate_saturation_temperature()
-            print(f"Saturated steam properties at {self.pressure_PSIA} psia (saturation temperature: {self.saturation_temperature_F:.2f} °F):")
+    #def get_properties(self):
+        self.convert_temperature_K()
+        self.convert_pressure_Pa()
         
-        vapor_density_lbft3 = self.calculate_vapor_density()
-        enthalpy_BTUlbs = self.calculate_enthalpy()
-        vapor_viscosity_lbfts = self.calculate_vapor_viscosity()
-        cp_BTUlbsF = self.calculate_cp()
-        cv_BTUlbsF = self.calculate_cv()
-        
-        print(f"Vapor density: {vapor_density_lbft3:.4f} lb/ft³")
-        print(f"Enthalpy: {enthalpy_BTUlbs:.4f} BTU/lb")
-        print(f"Viscosity: {vapor_viscosity_lbfts:.6f} lb/ft·s")
-        print(f"Specific heat capacity at constant pressure (Cp): {cp_BTUlbsF:.4f} BTU/lb·F")
-        print(f"Specific heat capacity at constant volume (Cv): {cv_BTUlbsF:.4f} BTU/lb·F")
-
-# Example usage
-if __name__ == "__main__":
-    # Superheated steam example
-    temperature_F = 640  # Example temperature in Fahrenheit for superheated steam
-    pressure_PSIA = 600  # Example pressure in psia
-
-    vapor_props = VaporProperties(temperature_F, pressure_PSIA, superheated=True)
-    vapor_props.print_properties()
+        return {
+            "Temperature (K)": self.temperature_K,
+            "Pressure (Pa)": self.pressure_Pa,
+            "Saturation Temperature (F)": self.calculate_saturation_temperature() if not self.superheated else "N/A",
+            "Vapor Density (lb/ft³)": self.calculate_vapor_density(),
+            "Enthalpy (BTU/lb)": self.calculate_enthalpy(),
+            "Vapor Viscosity (lb/ft·s)": self.calculate_vapor_viscosity(),
+            "Specific Heat Capacity at Constant Pressure (Cp) (BTU/lb·F)": self.calculate_cp(),
+            "Specific Heat Capacity at Constant Volume (Cv) (BTU/lb·F)": self.calculate_cv(),
+        }
+    
+    #def print_properties(self):
+        properties = self.get_properties()
+        for key, value in properties.items():
+            print(f"{key}: {value}")
