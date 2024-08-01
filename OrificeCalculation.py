@@ -1,5 +1,8 @@
 from fluids.flow_meter import differential_pressure_meter_solver
 from VaporProperties import Vapor_Properties  # Ensure this matches the filename of your VaporProperties class
+from dataclasses import dataclass
+from unitconvert import convert
+
 
 Fuel_Cost = 6.0  # Cost of fuel in $/MMBTU
 Water_Cost = 1.17  # Cost of water in $/lb
@@ -7,39 +10,80 @@ Boiler_Efficiency = 0.8  # Efficiency of the boiler
 BFW_Enthalpy = 38.1179  # Enthalpy of the boiler feed water in BTU/lb
 Net_HV = 900  # Net heating value of the fuel in BTU/ft3
 
+@dataclass
+class SteamLeakReport:
+    '''
+    class that contains information petaining to a steam leak such as the steam leak rate, fuel cost of the steam leak, 
+        water cost of the steam leak, accumulated cost of the steam leak, and fuel gas waste
+    '''
+
+    rate: float # Steam leak rate in PPHq
+    fuel_cost: float # Fuel cost of the steam leak in $/year
+    water_cost: float # Water cost of the steam leak in $/year
+    accumulated_cost: float # Accumulated cost of the steam leak in $/year
+    gas_waste: float # Fuel gas waste in ft3/year
+
+    def __str__(self):
+        report = {"Steam Leak Rate": self.rate, 
+                  "Fuel Cost": self.fuel_cost, 
+                  "Water Cost": self.water_cost, 
+                  "Accumulated Cost": self.accumulated_cost, 
+                  "Fuel Gas Waste": self.gas_waste}
+        
+        s = ""
+        for key, value in report.items():
+            s += f"{key}: {value}\n"
+        s = s.strip()
+        
+        return s
+
 class SteamLeakCalculator:
-    def __init__(self, vapor_properties, D_inches, D2_inches, P1_psi, P2_psi):
+    '''
+    Class to calculate the steam leak rate through an orifice
+    '''
+
+    k = 1.3  # Isentropic exponent for steam
+    taps = 'D/2'  # Tap orientation
+    meter_type = 'ISO 5167 orifice'  # Specify the meter type (ISO 5167 orifice)
+
+    def __init__(self, vapor_properties, pipe_diameter, orifice_diameter, upstream_pressure, downstream_pressure):
+        '''
+        vapor_propetries: Vapor_Properties object, i.e., temperature, pressure, and quality
+        pipe_diameter_inches: float, pipe diameter (in meters)
+        orifice_diameter: float, orifice diameter (in meters)
+        upstream_pressure: float, upstream pressure (in psi)
+        downstream_pressure: float, downstream pressure (in psi)
+        convert_units: tuple (str, str), units to convert the input values from 
+        '''
         self.vapor_properties = vapor_properties
-        self.D_inches = D_inches
-        self.D2_inches = D2_inches
-        self.P1_psi = P1_psi
-        self.P2_psi = P2_psi
+        self.pipe_diameter = pipe_diameter
+        self.orifice_diameter = orifice_diameter
+        self.upstream_pressure = upstream_pressure
+        self.downstream_pressure = downstream_pressure
+        
+
+        self.rho = self.vapor_properties.calculate_vapor_density() * 16.0185  # Convert density to kg/m^3
+        self.mu = self.vapor_properties.calculate_vapor_viscosity() * 1.48816e-5  # Convert viscosity to Pa.s
     
     def calculate_steam_leak(self):
-        # Convert to metric units
-        D = self.D_inches * 0.0254  # Convert pipe diameter to meters
-        D2 = self.D2_inches * 0.0254  # Convert orifice diameter to meters
-        rho = self.vapor_properties.calculate_vapor_density() * 16.0185  # Convert density to kg/m^3
-        mu = self.vapor_properties.calculate_vapor_viscosity() * 1.48816e-5  # Convert viscosity to Pa.s
-        P1 = self.P1_psi * 6894.76  # Convert upstream pressure to Pascals
-        P2 = self.P2_psi * 6894.76  # Convert downstream pressure to Pascals
-        k = 1.3  # Isentropic exponent for steam
-        taps = 'D/2'  # Tap orientation
+        '''
+        Calculate the steam leak rate through the orifice
 
-        # Specify the meter type (ISO 5167 orifice)
-        meter_type = 'ISO 5167 orifice'
+        Returns:
+        SteamLeakReport object
+        '''
 
         # Calculate the mass flow rate using the differential pressure meter solver
         mass_flow_rate_kg_s = differential_pressure_meter_solver(
-            D=D,
-            rho=rho,
-            mu=mu,
-            k=k,
-            D2=D2,
-            P1=P1,
-            P2=P2,
-            meter_type=meter_type,
-            taps=taps
+            D=self.pipe_diameter,
+            rho=self.rho,
+            mu=self.mu,
+            k=self.k,
+            D2=self.orifice_diameter,
+            P1=self.upstream_pressure,
+            P2=self.downstream_pressure,
+            meter_type=self.meter_type,
+            taps=self.taps
         )
 
         # Convert the mass flow rate to PPH
@@ -50,18 +94,5 @@ class SteamLeakCalculator:
         steam_accumulated_cost = steam_fuel_waste + steam_water_waste
         fuel_gas_waste = (((((self.vapor_properties.calculate_enthalpy() - BFW_Enthalpy) * (mass_flow_rate_pph3 * (10 ** 3)))/(Boiler_Efficiency))/(Net_HV)))
 
-        return {
-            "mass_flow_rate_pph": mass_flow_rate_pph,
-            #"mass_flow_rate_kg_s": mass_flow_rate_kg_s,
-            #"mass_flow_rate_pph3": mass_flow_rate_pph3,
-            "steam_fuel_cost": steam_fuel_waste,
-            "steam_water_cost": steam_water_waste,
-            "steam_accumulated_cost": steam_accumulated_cost,
-            "fuel_gas_waste": fuel_gas_waste,
-            #"rho": rho,
-            #"mu": mu,
-            #"P1": P1,
-            #"P2": P2,
-            #"D": D,
-            #"D2": D2,
-        }
+
+        return SteamLeakReport(rate=mass_flow_rate_pph, fuel_cost=steam_fuel_waste, water_cost=steam_water_waste, accumulated_cost=steam_accumulated_cost, gas_waste=fuel_gas_waste)
