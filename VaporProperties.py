@@ -1,4 +1,23 @@
 from CoolProp.CoolProp import PropsSI
+from dataclasses import dataclass
+
+@dataclass
+class Vapor_Properties_Report:
+    temp_F: float
+    press_PSIA: float
+    superheat: bool
+
+    def __str__(self):
+        report = {"Steam Temperature": self.temp_F,
+                  "Steam Pressure": self.press_PSIA,
+                  "Superheated": self.superheat}
+        
+        s = ""
+        for key, value in report.items():
+            s += f"{key}: {value}\n"
+        s = s.strip()
+        
+        return s
 
 class Vapor_Properties:
     def __init__(self, temperature_F, pressure_PSIA, superheated=False):
@@ -102,22 +121,19 @@ class Vapor_Properties:
         self.cv_BTUlbsF = cv_JkgK * 0.000238845896627
         return self.cv_BTUlbsF
     
-    #def get_properties(self):
-        self.convert_temperature_K()
-        self.convert_pressure_Pa()
-        
-        return {
-            "Temperature (K)": self.temperature_K,
-            "Pressure (Pa)": self.pressure_Pa,
-            "Saturation Temperature (F)": self.calculate_saturation_temperature() if not self.superheated else "N/A",
-            "Vapor Density (lb/ft³)": self.calculate_vapor_density(),
-            "Enthalpy (BTU/lb)": self.calculate_enthalpy(),
-            "Vapor Viscosity (lb/ft·s)": self.calculate_vapor_viscosity(),
-            "Specific Heat Capacity at Constant Pressure (Cp) (BTU/lb·F)": self.calculate_cp(),
-            "Specific Heat Capacity at Constant Volume (Cv) (BTU/lb·F)": self.calculate_cv(),
-        }
-    
-    #def print_properties(self):
-        properties = self.get_properties()
-        for key, value in properties.items():
-            print(f"{key}: {value}")
+
+    def get_report(self):
+        if not self.superheated:
+            self.calculate_saturation_temperature()
+            return Vapor_Properties_Report(
+                temp_F=self.saturation_temperature_F,
+                press_PSIA=self.pressure_PSIA,
+                superheat=self.superheated
+            )
+        else:
+            self.calculate_saturation_temperature()
+            return Vapor_Properties_Report(
+                temp_F=self.temperature_F,
+                press_PSIA=self.pressure_PSIA,
+                superheat=self.superheated
+        )
